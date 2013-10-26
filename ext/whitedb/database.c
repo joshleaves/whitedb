@@ -92,7 +92,7 @@ static VALUE WDB_Database_initialize(VALUE self, VALUE id, VALUE size) {
 static VALUE WDB_Database_create_record(VALUE self, VALUE length) {
   Check_Type(length, T_FIXNUM);
 
-  VALUE args[2] = { rb_iv_get(self, "@ptr_db"), length };
+  VALUE args[2] = { self, length };
   return rb_class_new_instance(2, args, WDB_Record);
 }
 
@@ -105,14 +105,15 @@ static VALUE WDB_Database_close(VALUE self) {
 **  WDB_Record functions **
 **************************/
 
-static VALUE WDB_Record_initialize(VALUE self, VALUE ptr_db, VALUE length) {
+static VALUE WDB_Record_initialize(VALUE self, VALUE db, VALUE length) {
   void *_db;
   void *rec;
 
-  Data_Get_Struct(ptr_db, void *, _db);
+  db = rb_iv_get(db, "@ptr_db");
+  Data_Get_Struct(db, void *, _db);
   rec = wg_create_record(_db, NUM2INT(length));
   rb_iv_set(self, "@length",  length);
-  rb_iv_set(self, "@ptr_db",  ptr_db);
+  rb_iv_set(self, "@ptr_db",  db);
   rb_iv_set(self, "@ptr_rec", Data_Wrap_Struct(WDB_Pointer, NULL, NULL, rec));
   return self;
 }
@@ -124,7 +125,6 @@ static VALUE WDB_Record_set_field(VALUE self, VALUE index, VALUE data) {
 
   Data_Get_Struct(rb_iv_get(self, "@ptr_db"), void *, _db);
   Data_Get_Struct(rb_iv_get(self, "@ptr_rec"), void *, rec);
-  printf(RSTRING_PTR(data));
   enc = wg_encode_str(_db, RSTRING_PTR(data), NULL);
   wg_set_field(_db, rec, NUM2INT(index), enc);
   return self;
