@@ -1,6 +1,7 @@
 // ext/database.c
 #include <ruby.h>
 #include <whitedb/dbapi.h>
+
 /*
 Dev ideas:
 
@@ -13,20 +14,30 @@ Dev ideas:
 -> Only do encode for a SET
 */
 
+/*****************************
+**  Variables declarations  **
+*****************************/
+
 VALUE WDB           = Qnil;
 VALUE WDB_Database  = Qnil;
 VALUE WDB_Record    = Qnil;
 VALUE WDB_Pointer   = Qnil;
 
+/*****************************
+**  Functions declarations  **
+*****************************/
 
 void Init_whitedb();
 
 static VALUE WDB_Database_initialize(VALUE self, VALUE id, VALUE size);
 static VALUE WDB_Database_create_record(VALUE self, VALUE length);
-static VALUE WDB_Database_close(VALUE self);
 
 static VALUE WDB_Record_initialize(VALUE self, VALUE db, VALUE length);
 static VALUE WDB_Record_set_field(VALUE self, VALUE index, VALUE data);
+
+/********************
+**  Init function  **
+********************/
 
 void Init_whitedb() {
   // Define our module and classes hierarchy
@@ -40,6 +51,7 @@ void Init_whitedb() {
   WDB_Database = rb_define_class_under(WDB, "Database", rb_cObject);
   WDB_Record   = rb_define_class_under(WDB, "Record",   rb_cObject);
   WDB_Pointer  = rb_define_class_under(WDB, "Pointer",  rb_cObject);
+
 
   // Define our Database methods
   //
@@ -55,14 +67,15 @@ void Init_whitedb() {
   //
   rb_define_method(WDB_Database, "initialize",    WDB_Database_initialize, 2);
   rb_define_method(WDB_Database, "create_record", WDB_Database_create_record, 1);
-  rb_define_method(WDB_Database, "close",         WDB_Database_close, 0);
   rb_define_attr(WDB_Database, "id", 1, 0);
   rb_define_attr(WDB_Database, "size", 1, 0);
+
 
   // Define our Record methods
   //
   // module WhiteDB
   //   class Record
+  //     attr_reader :length
   //
   //     def initialize(db, length); end
   //     def set_field(index, value); end
@@ -71,17 +84,20 @@ void Init_whitedb() {
   //
   rb_define_method(WDB_Record, "initialize", WDB_Record_initialize, 2);
   rb_define_method(WDB_Record, "set_field",  WDB_Record_set_field, 2);
+  rb_define_attr(WDB_Record, "length", 1, 0);
 }
 
-/****************************
-**  WDB_Database functions **
-****************************/
+
+/*****************************
+**  WDB_Database functions  **
+*****************************/
 
 static VALUE WDB_Database_initialize(VALUE self, VALUE id, VALUE size) {
   void *db;
 
   Check_Type(id,   T_STRING);
   Check_Type(size, T_FIXNUM);
+
   db = wg_attach_database(RSTRING_PTR(id) , NUM2INT(size));
   rb_iv_set(self, "@id",     id);
   rb_iv_set(self, "@size",   size);
@@ -96,18 +112,19 @@ static VALUE WDB_Database_create_record(VALUE self, VALUE length) {
   return rb_class_new_instance(2, args, WDB_Record);
 }
 
-static VALUE WDB_Database_close(VALUE self) {
-  return self;
-}
 
-
-/**************************
-**  WDB_Record functions **
-**************************/
+/***************************
+**  WDB_Record functions  **
+***************************/
 
 static VALUE WDB_Record_initialize(VALUE self, VALUE db, VALUE length) {
   void *_db;
   void *rec;
+
+  if (CLASS_OF(db) != WDB_Database) {
+    rb_raise(rb_eTypeError, "Wrong argument type %s (expected WhiteDB::Database)", rb_class2name(CLASS_OF(db)));
+  }
+  Check_Type(length, T_FIXNUM);
 
   db = rb_iv_get(db, "@ptr_db");
   Data_Get_Struct(db, void *, _db);
@@ -119,13 +136,30 @@ static VALUE WDB_Record_initialize(VALUE self, VALUE db, VALUE length) {
 }
 
 static VALUE WDB_Record_set_field(VALUE self, VALUE index, VALUE data) {
-  void  *_db;
-  void  *rec;
+  void *_db;
+  void *rec;
   wg_int enc;
 
+  Check_Type(index, T_FIXNUM);
   Data_Get_Struct(rb_iv_get(self, "@ptr_db"), void *, _db);
+  switch (TYPE(data)) {
+    case T_NIL:
+      enc = wg_encode_null(_db, 0);
+      break;
+    case T_STRING:
+      enc = wg_encode_str(_db, RSTRING_PTR(data), NULL);
+      break;
+    case T_FIXNUM:
+      enc = wg_encode_int(_db, NUM2INT(data));
+      break;
+    case T_FLOAT:
+      enc =  wg_encode_fixpoint(_db, NUM2DBL(data));
+      break;
+    default:
+      rb_raise(rb_eTypeError, "Wrong argument type %s (expected FixNum, Float, String)", rb_class2name(CLASS_OF(data)));
+  }
+
   Data_Get_Struct(rb_iv_get(self, "@ptr_rec"), void *, rec);
-  enc = wg_encode_str(_db, RSTRING_PTR(data), NULL);
   wg_set_field(_db, rec, NUM2INT(index), enc);
   return self;
 }

@@ -22,15 +22,32 @@ Create a database
 Create a record
 
     rec_size = 3
-    rec = db.create_record(rec_size)
+    rec_str = db.create_record(rec_size)
+    rec_nil = db.create_record(rec_size)
     # alternative:
-    # rec = WhiteDB::Record.new(db, rec_size)
+    rec_num = WhiteDB::Record.new(db, rec_size)
+    rec_dbl = WhiteDB::Record.new(db, rec_size)
 
-Populate a record with strings
+Populate a record with different types
 
     4.times do |x|
-      rec.set_field(x, "Test: #{x}")
-    end
+      rec_str.set_field(x, "#{x}")
+      rec_num.set_field(x, x)
+      rec_nil.set_field(x, nil)
+      rec_dbl.set_field(x, x + 0.5)
+     end
+
+You can now check that the data has been properly saved by using the binary `wgdb`
+
+    $ wgdb foo select 20
+    ["0","1","2","3","4"]
+    [0,1,2,3,4]
+    [NULL,NULL,NULL,NULL,NULL]
+    [0.500000,1.500000,2.500000,3.500000,4.500000]
+
+Limitations
+===========
+No date/time for now because date and time are separated in two fields (instead of only one like other types). Maybe later if the API gets rebuilt to accomodate for this.
 
 Next steps
 ==========
@@ -41,5 +58,5 @@ Next steps
 
  * Add blocks to all init methods
 
- * Check for errors, thow some stuff and add a test suite
+ * Check for errors returns, throw some stuff and add a test suite
 
